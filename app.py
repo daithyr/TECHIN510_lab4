@@ -1,83 +1,120 @@
 import os
-from dataclasses import dataclass, field
-
+import datetime
 import streamlit as st
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+import requests
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
-con = psycopg2.connect(os.getenv("DATABASE_URL"))
+con = psycopg2.connect(os.environ("DATABASE_URL"), cursor_factory=RealDictCursor)
 cur = con.cursor()
 
-cur.execute(
-    """
-    CREATE TABLE IF NOT EXISTS prompts (
-        id SERIAL PRIMARY KEY,
-        title TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        favorite BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """
-)
+def scrape_books():
+    BASE_URL = 'https://books.toscrape.com/catalogue/'
+    books = []
 
-@dataclass
-class Prompt:
-    title: str = field(default="")
-    prompt: str = field(default="")
-    id: int = field(default=None)
+    for page in range(1, 51):
+        url = f'{BASE_URL}page-{page}.html'
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-def prompt_form(prompt=Prompt()):
-    with st.form(key="prompt_form", clear_on_submit=True):
-        title = st.text_input("Title", value=prompt.title, help="Title is required.")
-        prompt_text = st.text_area("Prompt", height=200, value=prompt.prompt, help="Prompt text is required.")
-        submitted = st.form_submit_button("Submit")
-        if submitted and title and prompt_text:
-            return Prompt(title=title, prompt=prompt_text, id=prompt.id)
-        elif submitted:
-            st.warning("Both title and prompt are required.")
+        for book in soup.select('article.product_pod'):
+            title = book.h3.a['title']
+            price = book.select_one('p.price_color').text
+            rating = book.select_one('p.star-rating')['class'][1]
 
-st.title("Promptbase")
-st.subheader("A simple app to store and retrieve prompts")
+            # Navigate to the product page to get the description
+            product_url = BASE_URL + book.h3.a['href']
+            product_response = requests.get(product_url)
+            product_soup = BeautifulSoup(product_response.text, 'html.parser')
 
-# Form for creating or updating prompts
-prompt = prompt_form()
-if prompt and prompt.id is None:
-    cur.execute("INSERT INTO prompts (title, prompt) VALUES (%s, %s) RETURNING id", (prompt.title, prompt.prompt,))
-    prompt_id = cur.fetchone()[0]
+            description_element = product_soup.select('#product_description + p')
+            description = description_element[0].text.strip() if description_element else 'No description available'
+
+            books.append({
+                'title': title,
+                'price': price,
+                'rating': rating,
+                'description': description
+            })
+
+    return books
+
+def store_books(books):
+    for book in books:
+        price = book['price'].replace('Â', '').replace('£', '')
+        cur.execute("""
+            INSERT INTO books (title, price, rating, description)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (title) DO NOTHING""",
+            (book['title'], price, book['rating'], book['description']))
     con.commit()
-    st.success(f"Prompt {prompt_id} added successfully!")
 
-# Search functionality
-search_query = st.text_input("Search for prompts")
-sort_order = st.selectbox("Sort by", ["Newest", "Oldest"])
+def create_table():
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS books (
+            id SERIAL PRIMARY KEY,
+            title TEXT UNIQUE,
+            price TEXT,
+            rating TEXT,
+            description TEXT
+        )
+    """)
+    con.commit()
 
-# Displaying prompts based on search and sort order
-sort_order_sql = "DESC" if sort_order == "Newest" else "ASC"
-cur.execute(f"SELECT id, title, prompt, favorite FROM prompts WHERE title ILIKE %s OR prompt ILIKE %s ORDER BY created_at {sort_order_sql}", (f"%{search_query}%", f"%{search_query}%"))
-prompts = cur.fetchall()
+def check_table_empty():
+    cur.execute("SELECT COUNT(*) FROM books")
+    count = cur.fetchone()['count']
+    return count == 0
 
-# Handling prompt updates or deletions
-for p in prompts:
-    with st.expander(f"{p[1]}"):
-        st.code(p[2])
-        if st.checkbox("Favorite", value=p[3], key=f"fav_{p[0]}"):
-            cur.execute("UPDATE prompts SET favorite = %s WHERE id = %s", (not p[3], p[0]))
-            con.commit()
-            st.success(f"Prompt {p[0]} favorite status updated!")
-        edit = st.button("Edit", key=f"edit_{p[0]}")
-        delete = st.button("Delete", key=f"delete_{p[0]}")
-        if delete:
-            cur.execute("DELETE FROM prompts WHERE id = %s", (p[0],))
-            con.commit()
-            st.experimental_rerun()
-        if edit:
-            prompt_to_edit = Prompt(title=p[1], prompt=p[2], id=p[0])
-            prompt_form(prompt_to_edit)
-            if prompt and prompt.id is not None:
-                cur.execute("UPDATE prompts SET title = %s, prompt = %s WHERE id = %s", (prompt.title, prompt.prompt, prompt.id))
-                con.commit()
-                st.success(f"Prompt {prompt.id} updated successfully!")
-                st.experimental_rerun()
+st.title("Book Scraper")
+st.subheader("A simple app to scrape and query book data")
+
+create_table()
+
+if check_table_empty():
+    if st.button("Scrape Books"):
+        books = scrape_books()
+        store_books(books)
+        st.success(f"{len(books)} books scraped and stored successfully!")
+    else:
+        st.write("Click the 'Scrape Books' button if no results are displayed by default.")
+else:
+    st.write("Books have already been scraped. Displaying the stored results.")
+    st.write("If you want to re-scrape the books, please manually clear the database table.")
+    st.write("The scraped results will automatically update at midnight.")
+
+# Filtering and sorting options
+search_query = st.text_input("Search by title or description")
+min_price = st.number_input("Minimum price", min_value=0.0, value=0.0, step=0.01)
+max_price = st.number_input("Maximum price", min_value=0.0, value=100.0, step=0.01)
+rating_filter = st.selectbox('Filter by rating', ('All', 'One', 'Two', 'Three', 'Four', 'Five'))
+
+# Applying the filter and sort query
+rating_mapping = {
+    'All': 'All',
+    'One': 'One',
+    'Two': 'Two',
+    'Three': 'Three',
+    'Four': 'Four',
+    'Five': 'Five'
+}
+
+cur.execute("""
+    SELECT * FROM books
+    WHERE (title ILIKE %s OR description ILIKE %s)
+    AND CAST(REPLACE(REPLACE(price, 'Â', ''), '£', '') AS FLOAT) BETWEEN %s AND %s
+    AND (%s = 'All' OR rating = %s)
+    ORDER BY CAST(REPLACE(REPLACE(price, 'Â', ''), '£', '') AS FLOAT) ASC""",
+    (f'%{search_query}%', f'%{search_query}%', min_price, max_price, rating_filter, rating_mapping.get(rating_filter, 'All')))
+
+books = cur.fetchall()
+
+# Displaying books
+for book in books:
+    with st.expander(f"{book['title']} - £{book['price']}"):
+        st.write(f"Rating: {book['rating'].capitalize()}")
+        st.write(book['description'])
