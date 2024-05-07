@@ -2,4 +2,4 @@ streamlit
 psycopg2-binary
 python-dotenv
 requests
-bs4
+beautifulsoup4
