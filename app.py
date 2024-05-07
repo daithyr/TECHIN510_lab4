@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 from db import Database
 
 load_dotenv()
+database_url = st.secrets["DATABASE_URL"]
+
+con = psycopg2.connect(database_url)
+cur = con.cursor()
+
 
 def display_books(books):
     
