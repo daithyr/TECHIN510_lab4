@@ -5,7 +5,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 import requests
-
+from bs4 import BeautifulSoup 
 
 load_dotenv()
 
