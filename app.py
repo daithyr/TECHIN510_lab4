@@ -1,8 +1,8 @@
 import os
-from db import Database
+from dataclasses import dataclass, field
 import streamlit as st
 from dotenv import load_dotenv
-from db import Database
+
 
 load_dotenv()
 database_url = st.secrets["DATABASE_URL"]
