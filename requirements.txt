@@ -3,3 +3,7 @@ psycopg2-binary
 python-dotenv
 requests
 beautifulsoup4
+folium
+geopy
+requests
+datetime
