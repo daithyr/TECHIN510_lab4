@@ -3,7 +3,7 @@
 ## Book Scraper
 
 ### Overview
-[Hosted Link](https://techin510lab4-daithyr.streamlit.app)
+[book scrapper](https://techin510lab4-daithyr.streamlit.app)
 This app scrapes book data from "https://books.toscrape.com/" and stores it in a PostgreSQL database. The data is displayed in a Streamlit web app, allowing users to search, filter, and sort the books.
 
 ### Features
@@ -24,7 +24,7 @@ This app scrapes book data from "https://books.toscrape.com/" and stores it in a
 ## Weather App
 
 ### Overview
-[Hosted Link]((https://techin510lab4-weather-daithyr.streamlit.app))
+[weather app](https://techin510lab4-weather-daithyr.streamlit.app)
 This app provides real-time weather information and a 3-day forecast based on the location entered by the user.
 
 ### Features
