@@ -1,4 +1,11 @@
 # TECHIN510_lab4
+changes for regrade:
+
+1. For the web scrapper, I updated the streamlit link. The original submission link went to lab3, resulting in low grade.
+
+2. Add the extra credit weather app streamlit.
+
+
 
 ## Book Scraper
 
@@ -66,5 +73,6 @@ This app provides real-time weather information and a 3-day forecast based on th
 - **Error Handling**: Improved handling of invalid city names and API request failures.
 - **User Interface**: Enhanced user experience with intuitive design and clear weather information.
 - **Data Presentation**: Presented real-time and forecasted weather data effectively using Streamlit.
+  
 
 
