@@ -46,7 +46,7 @@ def get_city_coordinates(city):
 def get_weather_data(latitude, longitude):
     base_url = "https://api.meteomatics.com"
     now = datetime.utcnow()
-    parameters = "t_2m:C,weather_symbol_1h:idx"
+    parameters = "t_2m:C,t_min_2m_24h:C,t_max_2m_24h:C,weather_symbol_1h:idx"
     time_range = f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')},{(now + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%SZ')},{(now + timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ')},{(now + timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%SZ')}"
     url = f"{base_url}/{time_range}/{parameters}/{latitude},{longitude}/json"
     
@@ -72,7 +72,7 @@ def display_weather_info(city):
 
             # Current temperature and general weather state
             current_temp = weather_data['data'][0]['coordinates'][0]['dates'][0]['value'] if weather_data['data'] and weather_data['data'][0]['coordinates'] else "N/A"
-            current_weather_state = weather_data['data'][1]['coordinates'][0]['dates'][0]['value'] if weather_data['data'] and weather_data['data'][1]['coordinates'] else 0
+            current_weather_state = weather_data['data'][3]['coordinates'][0]['dates'][0]['value'] if weather_data['data'] and weather_data['data'][3]['coordinates'] else 0
             current_emoji = weather_emojis.get(current_weather_state, "❓")
             st.write(f"Current Temperature: {current_temp}°C {current_emoji}")
 
@@ -81,15 +81,16 @@ def display_weather_info(city):
             for i in range(1, 4):
                 if weather_data['data'] and weather_data['data'][0]['coordinates'] and len(weather_data['data'][0]['coordinates'][0]['dates']) > i:
                     date = weather_data['data'][0]['coordinates'][0]['dates'][i]['date']
-                    temp = weather_data['data'][0]['coordinates'][0]['dates'][i]['value'] if weather_data['data'] and weather_data['data'][0]['coordinates'] else "N/A"
-                    weather_state = weather_data['data'][1]['coordinates'][0]['dates'][i]['value'] if weather_data['data'] and weather_data['data'][1]['coordinates'] else 0
+                    min_temp = weather_data['data'][1]['coordinates'][0]['dates'][i]['value'] if weather_data['data'] and weather_data['data'][1]['coordinates'] else "N/A"
+                    max_temp = weather_data['data'][2]['coordinates'][0]['dates'][i]['value'] if weather_data['data'] and weather_data['data'][2]['coordinates'] else "N/A"
+                    weather_state = weather_data['data'][3]['coordinates'][0]['dates'][i]['value'] if weather_data['data'] and weather_data['data'][3]['coordinates'] else 0
                     emoji = weather_emojis.get(weather_state, "❓")
-                    forecast_data.append({"date": date, "temp": temp, "emoji": emoji})
+                    forecast_data.append({"date": date, "min_temp": min_temp, "max_temp": max_temp, "emoji": emoji})
 
             # Display weather forecast
             for day in forecast_data:
                 date = datetime.strptime(day['date'], "%Y-%m-%dT%H:%M:%SZ").strftime("%a, %b %d")
-                st.write(f"{day['emoji']} {date}: {day['temp']}°C")
+                st.write(f"{day['emoji']} {date}: {day['min_temp']}°C - {day['max_temp']}°C")
         else:
             st.warning("Failed to retrieve weather data.")
     else:
@@ -109,4 +110,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
